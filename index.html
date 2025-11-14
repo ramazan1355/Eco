@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>TerraSentinel Mobile — Алматы</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+
+<style>
+  :root{
+    --bg:#071422;
+    --card: rgba(255,255,255,0.04);
+    --accent:#6ee7b7;
+    --accent-2:#60a5fa;
+    --danger:#ff6b6b;
+    --glass: rgba(255,255,255,0.04);
+    --muted: rgba(255,255,255,0.6);
+  }
+  /* Mobile first */
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#041421 0%, #072b3a 100%);font-family:Inter, "Segoe UI", Roboto, sans-serif;color:#fff;-webkit-font-smoothing:antialiased;}
+  #map{height:100vh;width:100%;position:relative;z-index:1;border-top-left-radius:12px;border-top-right-radius:12px;overflow:hidden}
+  /* Top header (compact on mobile) */
+  header.appbar{position:fixed;left:8px;right:8px;top:12px;z-index:1200;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));backdrop-filter:blur(6px);border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .logo{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:#021417;font-weight:700}
+  .brand h1{font-size:14px;margin:0}
+  .small-muted{font-size:11px;color:var(--muted);margin-top:2px}
+
+  /* Control panel bottom sheet */
+  .sheet{
+    position:fixed;
+    left:8px;
+    right:8px;
+    bottom:12px;
+    z-index:1200;
+    background:linear-gradient(180deg, rgba(4,20,30,0.85), rgba(2,10,16,0.85));
+    border-radius:14px;
+    padding:12px;
+    box-shadow:0 14px 40px rgba(0,0,0,0.6);
+    border:1px solid rgba(255,255,255,0.04);
+    display:flex;
+    gap:8px;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+
+  .sheet .left{display:flex;gap:8px;align-items:center}
+  .sheet .action-btn{
+    background:var(--card);
+    border:1px solid rgba(255,255,255,0.03);
+    padding:10px 12px;border-radius:10px;font-size:13px;color:#fff;display:flex;gap:8px;align-items:center;min-width:90px;justify-content:center
+  }
+  .sheet .action-btn.primary{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#021417;font-weight:700;border:none}
+  .sheet .score{font-weight:700;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.02);font-size:14px}
+
+  /* Floating AI button */
+  .ai-floating{position:fixed;right:18px;bottom:86px;z-index:1300}
+  .ai-btn{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;border:none;box-shadow:0 12px 30px rgba(50,120,200,0.14);font-size:20px;color:#021417}
+  /* Side panel (overlay) */
+  .panel{
+    position:fixed;left:12px;top:74px;bottom:12px;width:340px;max-width:92%;z-index:1400;background:linear-gradient(180deg, rgba(12,23,30,0.96), rgba(4,12,18,0.96));border-radius:14px;padding:12px;overflow:auto;border:1px solid rgba(255,255,255,0.04);display:none;
+  }
+  .panel h3{margin:4px 0 8px;font-size:16px;color:var(--accent)}
+  .panel .section{margin-bottom:12px}
+  .small{font-size:13px;color:var(--muted)}
+
+  /* District list */
+  .district{display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:10px;background:rgba(255,255,255,0.02);margin:6px 0}
+  .aqi{font-weight:700;padding:6px 8px;border-radius:8px;background:rgba(0,0,0,0.25)}
+
+  /* Gamification */
+  .game-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .solve-btn{flex:1;min-width:110px;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.015));font-weight:700}
+  .solve-btn.good{background:linear-gradient(90deg,#9be7c4,#60d0ff);color:#021417}
+  .solve-btn.warn{background:linear-gradient(90deg,#ffb86b,#ff6b6b);color:#021417}
+
+  /* Tooltip small */
+  .tip{font-size:12px;color:var(--muted);margin-top:6px}
+
+  /* Responsive adjustments for wider screens */
+  @media(min-width:760px){
+    #map{border-radius:16px;margin:24px}
+    .panel{display:block}
+    .sheet{left:24px;right:24px;bottom:24px;width:auto;max-width:1200px}
+  }
+
+  /* small footer note */
+  .footer-note{position:fixed;left:12px;bottom:12px;z-index:1200;font-size:12px;color:var(--muted)}
+  /* badges */
+  .badge{display:inline-block;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:12px;margin-right:6px}
+</style>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="brand">
+    <div class="logo">TS</div>
+    <div>
+      <h1>TerraSentinel</h1>
+      <div class="small-muted">Алматы — мониторинг воздуха</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="small-muted" id="lastUpdate">обновлено: —</div>
+    <button id="openPanel" class="action-btn" title="Открыть панель"><i class="fas fa-bars"></i></button>
+  </div>
+</header>
+
+<!-- Map -->
+<div id="map" aria-label="Карта Алматы"></div>
+
+<!-- Floating AI & gamification actions -->
+<div class="ai-floating">
+  <button class="ai-btn" id="aiToggle" title="Советы"><i class="fas fa-robot"></i></button>
+</div>
+
+<!-- Bottom sheet with main actions -->
+<div class="sheet" role="region" aria-label="Панель действий">
+  <div class="left">
+    <button class="action-btn primary" id="actionGreenDrive"><i class="fas fa-car-side"></i> Зеленый драйв</button>
+    <button class="action-btn" id="actionPlant"><i class="fas fa-seedling"></i> Посадить деревья</button>
+    <button class="action-btn" id="actionFilter"><i class="fas fa-fan"></i> Очистители</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="score" id="userScore">⚡ 0</div>
+    <button class="action-btn" id="openLeaderboard"><i class="fas fa-trophy"></i></button>
+  </div>
+</div>
+
+<!-- Side panel (hidden on mobile by default) -->
+<aside class="panel" id="sidePanel" aria-hidden="true">
+  <h3><i class="fas fa-city"></i>&nbsp;Проблемные районы Алматы</h3>
+
+  <div class="section">
+    <div class="small">Нажмите на район, чтобы увидеть детали. Кнопки "Решить" снижают AQI и дают очки.</div>
+    <div id="districtList" style="margin-top:8px"></div>
+  </div>
+
+  <div class="section">
+    <h3><i class="fas fa-gamepad"></i>&nbsp;Геймификация</h3>
+    <div class="small">Зарабатывайте очки за действия: посадка деревьев, акции «без машины», установка очистителей. Бейджи сохраняются в вашем браузере.</div>
+    <div style="margin-top:8px">
+      <div class="badge" id="badgeTree">🌱 Дерево: —</div>
+      <div class="badge" id="badgeDrive">🚗 Без машины: —</div>
+      <div class="badge" id="badgeFilter">🌀 Очиститель: —</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h3><i class="fas fa-lightbulb"></i>&nbsp;Советы</h3>
+    <ul class="small">
+      <li>Меняйте поездки на общественный транспорт или велосипеды.</li>
+      <li>Планируйте посадки деревьев группой — даёт бонусы.</li>
+      <li>Поддерживайте локальные инициативы по очистке улиц.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h3><i class="fas fa-plus-circle"></i>&nbsp;Сообщить о загрязнении</h3>
+    <div style="display:flex;gap:8px">
+      <input id="reportText" placeholder="Описание..." style="flex:1;padding:8px;border-radius:8px;border:none;background:rgba(255,255,255,0.02);color:#fff" />
+      <button class="action-btn" id="reportBtn"><i class="fas fa-paper-plane"></i></button>
+    </div>
+    <div class="tip">Отправка добавит временную метку и маркер на карту.</div>
+  </div>
+</aside>
+
+<div class="footer-note">Локальная демонстрация — данные имитированы.</div>
+
+<!-- Libraries -->
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script>
+/* =========================
+   Data (имитация районов Алматы)
+   coords — приближённые центры районов Алма-Аты (Алматы)
+   ========================= */
+const districts = [
+  { id: 'almalin', name: 'Алмалинский', coord:[43.238949,76.889709], aqi: 120 },
+  { id: 'bostand', name: 'Бостандықский', coord:[43.2447,76.9120], aqi: 142 },
+  { id: 'aul', name: 'Ауэзовский', coord:[43.2166,76.9544], aqi: 160 },
+  { id: 'medeus', name: 'Медеуский', coord:[43.2442,76.9319], aqi: 98 },
+  { id: 'turksib', name: 'Турксиб/Алатауский', coord:[43.1800,76.8500], aqi: 132 }
+];
+
+/* Utilities */
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+function nowStr(){return new Date().toLocaleString('ru-RU');}
+
+/* Map init */
+const map = L.map('map', { zoomControl:false }).setView([43.24,76.92], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+L.control.scale({position:'bottomleft'}).addTo(map);
+
+/* heatLayer based on district AQI (normalized) */
+function makeHeatPoints(){
+  return districts.map(d => [d.coord[0], d.coord[1], clamp((d.aqi/200),0.05,1)]);
+}
+let heat = L.heatLayer(makeHeatPoints(), {radius: 40, blur: 30, maxZoom: 15}).addTo(map);
+
+/* Marker layer with AQI popups */
+const districtLayer = L.layerGroup().addTo(map);
+function renderDistrictMarkers(){
+  districtLayer.clearLayers();
+  districts.forEach(d=>{
+    const color = aqiColor(d.aqi);
+    const html = `<div style="display:flex;flex-direction:column;align-items:center;">
+                    <div style="background:${color};padding:8px 10px;border-radius:8px;font-weight:800;color:#021417">${d.aqi}</div>
+                    <div style="margin-top:6px;font-weight:700">${d.name}</div>
+                    <div style="font-size:12px;margin-top:4px;color:rgba(255,255,255,0.8)">${d.aqi>150? 'Опасно': d.aqi>100? 'Плохо':'Умеренно'}</div>
+                  </div>`;
+    const marker = L.marker(d.coord, {icon: L.divIcon({className:'custom-aqi', html: html, iconSize: [90,90], iconAnchor:[45,45]}) })
+      .bindPopup(`<b>${d.name}</b><br>AQI: ${d.aqi}<br><small>Последнее обновление: ${nowStr()}</small><br><div style="margin-top:6px"><button class="solve-small" data-id="${d.id}" style="padding:6px 8px;border-radius:8px;border:none;background:linear-gradient(90deg,#9be7c4,#60d0ff);font-weight:700">Решить</button></div>`);
+    marker.addTo(districtLayer);
+  });
+}
+function aqiColor(aqi){
+  if(aqi>150) return '#ff6b6b';
+  if(aqi>100) return '#ffb86b';
+  if(aqi>50) return '#ffd86b';
+  return '#9be7c4';
+}
+renderDistrictMarkers();
+
+/* District list in panel */
+const districtListEl = document.getElementById('districtList');
+function renderDistrictList(){
+  districtListEl.innerHTML='';
+  districts.forEach(d=>{
+    const el = document.createElement('div'); el.className='district';
+    el.innerHTML = `<div style="display:flex;flex-direction:column">
+                      <div style="font-weight:700">${d.name}</div>
+                      <div class="small">${d.aqi>150?'Критично':d.aqi>100?'Плохой':'Умеренный'}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end">
+                      <div class="aqi" style="background:${aqiColor(d.aqi)}">${d.aqi}</div>
+                      <div style="margin-top:6px;display:flex;gap:6px">
+                        <button class="solve-btn good" data-action="plant" data-id="${d.id}">🌱 Посадить</button>
+                        <button class="solve-btn warn" data-action="filter" data-id="${d.id}">🌀 Очистить</button>
+                      </div>
+                    </div>`;
+    districtListEl.appendChild(el);
+  });
+}
+renderDistrictList();
+
+/* Last update time */
+document.getElementById('lastUpdate').textContent = 'обновлено: ' + nowStr();
+
+/* User gamification state (localStorage) */
+const stateKey = 'ts_mobile_state_v1';
+let state = JSON.parse(localStorage.getItem(stateKey) || '{}');
+if(!state.score) state.score = 0;
+if(!state.badges) state.badges = {tree:false,drive:false,filter:false};
+saveState();
+updateScoreDisplay();
+updateBadgesUI();
+
+function saveState(){ localStorage.setItem(stateKey, JSON.stringify(state)); }
+function addScore(n){ state.score += n; saveState(); updateScoreDisplay(); }
+function updateScoreDisplay(){ document.getElementById('userScore').textContent = '⚡ ' + state.score; }
+function updateBadgesUI(){
+  document.getElementById('badgeTree').textContent = '🌱 Дерево: ' + (state.badges.tree ? 'получен':'—');
+  document.getElementById('badgeDrive').textContent = '🚗 Без машины: ' + (state.badges.drive ? 'получен':'—');
+  document.getElementById('badgeFilter').textContent = '🌀 Очиститель: ' + (state.badges.filter ? 'получен':'—');
+}
+
+/* Actions: plant trees, green drive, filter */
+function improveDistrict(id, type){
+  const d = districts.find(x=>x.id===id);
+  if(!d) return;
+  // magnitude by action type
+  let delta = 0;
+  let points = 0;
+  if(type==='plant'){ delta = -12; points = 20; state.badges.tree=true; }
+  if(type==='filter'){ delta = -18; points = 30; state.badges.filter=true; }
+  if(type==='drive'){ delta = -10; points = 15; state.badges.drive=true; }
+  // apply with random factor
+  const factor = 0.7 + Math.random()*0.6;
+  d.aqi = Math.round(clamp(d.aqi + delta*factor, 10, 300));
+  // update views
+  heat.setLatLngs(makeHeatPoints());
+  renderDistrictMarkers();
+  renderDistrictList();
+  addScore(points);
+  updateBadgesUI();
+  document.getElementById('lastUpdate').textContent = 'обновлено: ' + nowStr();
+  showToast(`+${points} очков — ${type==='plant'?'Посадка деревьев':type==='filter'?'Установка очистителей':'Акция без машин'} в ${d.name}`);
+}
+
+/* Bind solve buttons from popup or panel */
+document.addEventListener('click', function(e){
+  const t = e.target;
+  if(t.classList.contains('solve-small')){
+    const id = t.dataset.id;
+    // small popup solve uses "filter"
+    improveDistrict(id, 'filter');
+    map.closePopup();
+  } else if(t.classList.contains('solve-btn')){
+    const id = t.dataset.id;
+    const action = t.dataset.action;
+    improveDistrict(id, action);
+  }
+});
+
+/* Main sheet buttons (global actions) */
+document.getElementById('actionGreenDrive').addEventListener('click', ()=>{
+  // apply to 2 worst districts
+  const worst = [...districts].sort((a,b)=>b.aqi-aqiColor(b.aqi)).slice(0,2).map(d=>d.id);
+  worst.forEach(id=>improveDistrict(id,'drive'));
+  showToast('Акция "Зелёный драйв" активирована — уменьшили выбросы в проблемных районах');
+});
+
+document.getElementById('actionPlant').addEventListener('click', ()=>{
+  // plant in all districts but with smaller effect
+  districts.forEach(d=>improveDistrict(d.id,'plant'));
+  showToast('Массовая высадка деревьев — воздух улучшен');
+});
+
+document.getElementById('actionFilter').addEventListener('click', ()=>{
+  // filters in worst district
+  const worst = districts.reduce((p,c)=>c.aqi>p.aqi?c:p,districts[0]);
+  improveDistrict(worst.id,'filter');
+  showToast('Очистители запущены в ' + worst.name);
+});
+
+/* Report pollution */
+document.getElementById('reportBtn').addEventListener('click', ()=>{
+  const txt = document.getElementById('reportText').value.trim();
+  if(!txt){ showToast('Введите описание для отчёта'); return; }
+  const center = map.getCenter();
+  const marker = L.marker([center.lat, center.lng]).addTo(map).bindPopup(`<b>Сообщение</b><br>${txt}<br><small>${nowStr()}</small>`);
+  marker.openPopup();
+  document.getElementById('reportText').value='';
+  showToast('Отчёт отправлен (локально). Спасибо!');
+});
+
+/* Side panel toggle */
+const sidePanel = document.getElementById('sidePanel');
+document.getElementById('openPanel').addEventListener('click', function(){
+  const shown = sidePanel.style.display === 'block';
+  sidePanel.style.display = shown ? 'none' : 'block';
+  sidePanel.setAttribute('aria-hidden', shown ? 'true':'false');
+});
+
+/* AI toggle shows quick tips modal (re-uses sidePanel area) */
+document.getElementById('aiToggle').addEventListener('click', ()=>{
+  if(sidePanel.style.display === 'block'){
+    sidePanel.style.display = 'none';
+  } else {
+    // populate quick actions into panel then show
+    sidePanel.style.display = 'block';
+    sidePanel.innerHTML = `
+      <h3><i class="fas fa-robot"></i>&nbsp;Советник TerraSentinel</h3>
+      <div class="section"><div class="small">Вам доступны быстрые действия для уменьшения загрязнения. Нажмите один из быстрых сценариев:</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="solve-btn good" id="quickPlant" style="flex:1">🌱 Массовая посадка</button>
+        <button class="solve-btn warn" id="quickDrive" style="flex:1">🚶‍♂️ Без машин сегодня</button>
+      </div>
+      <div class="tip">Советы: используйте общественный транспорт, носите маску в "красных" зонах, поддерживайте зелёные инициативы.</div></div>
+      <div class="section"><h3><i class="fas fa-info-circle"></i>&nbsp;Статистика</h3><div id="miniStats" class="small"></div></div>
+      <div class="section"><button class="action-btn" id="closePanel">Закрыть</button></div>
+    `;
+    document.getElementById('miniStats').innerHTML = districts.map(d=>`${d.name}: AQI ${d.aqi}`).join('<br>');
+    document.getElementById('closePanel').addEventListener('click', ()=>{ sidePanel.style.display='none'; });
+    document.getElementById('quickPlant').addEventListener('click', ()=>{ districts.forEach(d=>improveDistrict(d.id,'plant')); sidePanel.style.display='none'; });
+    document.getElementById('quickDrive').addEventListener('click', ()=>{ districts.slice(0,3).forEach(d=>improveDistrict(d.id,'drive')); sidePanel.style.display='none'; });
+  }
+});
+
+/* Leaderboard (simple modal) */
+document.getElementById('openLeaderboard').addEventListener('click', ()=>{
+  alert('Лидерборд (локальный):\n\nВы: ' + state.score + ' очков\n\n(Демонстрация локальных достижений)');
+});
+
+/* Toast helper */
+let toastTimer=null;
+function showToast(text){
+  let t = document.getElementById('ts_toast');
+  if(!t){
+    t = document.createElement('div'); t.id='ts_toast';
+    t.style.position='fixed'; t.style.left='50%'; t.style.transform='translateX(-50%)'; t.style.bottom='160px';
+    t.style.background='linear-gradient(90deg,#0ea5a3,#60a5fa)'; t.style.color='#021417'; t.style.padding='10px 14px';
+    t.style.borderRadius='12px'; t.style.zIndex='2000'; t.style.boxShadow='0 10px 30px rgba(0,0,0,0.4)'; t.style.fontWeight='700';
+    document.body.appendChild(t);
+  }
+  t.textContent = text;
+  t.style.opacity = '1';
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ t.style.opacity='0'; }, 3000);
+}
+
+/* Small periodic "realism" updates: small AQI drift (simulates changes) */
+setInterval(()=>{
+  districts.forEach(d=>{
+    // small fluctuation
+    d.aqi = Math.round(clamp(d.aqi + (Math.random()-0.5)*6, 20, 220));
+  });
+  heat.setLatLngs(makeHeatPoints());
+  renderDistrictMarkers();
+  renderDistrictList();
+  document.getElementById('lastUpdate').textContent = 'обновлено: ' + nowStr();
+}, 20000); // каждые 20 секунд (демо)
+
+/* Initial render calls */
+heat.setLatLngs(makeHeatPoints());
+renderDistrictMarkers();
+renderDistrictList();
+
+/* Accessibility: handle keyboard escape to close side panel */
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') sidePanel.style.display='none'; });
+
+</script>
+</body>
+</html>
